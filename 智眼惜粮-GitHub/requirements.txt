@@ -1,0 +1,17 @@
+torch>=2.0.0
+torchvision>=0.15.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+python-multipart
+pandas
+numpy<2.0.0
+opencv-python
+pillow
+scikit-learn
+tqdm
+matplotlib
+ultralytics
+albumentations
+volcenginesdkarkruntime
+pymysql
+sqlalchemy

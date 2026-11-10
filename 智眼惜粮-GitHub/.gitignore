@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 大文件（不上传）
+files/
+*.zip
+*.log
+cluster_samples/
+cluster_summary.png
+training_curves.png
+
+# 可生成的数据文件
+waste_cause_features.csv
+waste_cause_features_augmented.csv
+
+# Node
+node_modules/
+dist/
+.env
+.env.local

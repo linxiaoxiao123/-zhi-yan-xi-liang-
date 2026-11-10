@@ -1,0 +1,149 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "智眼惜粮 · 餐食浪费分析接口（ADP/Coze 通用）",
+    "description": "食堂餐食浪费智能监测系统的对外接口，供腾讯云 ADP / Coze 智能体插件调用。包含：①单次餐盘图片分析（POST /api/coze/analyze）②聚合统计分析（GET /api/analysis/summary）。",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://5eecd34b.r16.vip.cpolar.cn",
+      "description": "替换为当前可用的公网地址（cpolar 免费版每次重启会变；正式部署填 frp+域名）。示例：https://2d28a108.r9.cpolar.top"
+    }
+  ],
+  "paths": {
+    "/api/coze/analyze": {
+      "post": {
+        "summary": "餐盘图片智能分析（单次）",
+        "operationId": "analyzePlate",
+        "description": "接收餐盘图片（公网 URL 或 base64），执行 YOLOv8 检测 + U-Net 分割 + 浪费率计算 + 弃因分类，返回结构化结果。当用户发送餐盘照片时调用。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image_url": {
+                    "type": "string",
+                    "description": "公网可访问的图片 URL（ADP 上传图片后平台给出的地址，推荐此方式）"
+                  },
+                  "image_base64": {
+                    "type": "string",
+                    "description": "图片 Base64 字符串（备选，大图传输较慢，建议优先用 image_url）"
+                  },
+                  "api_token": {
+                    "type": "string",
+                    "description": "鉴权令牌；也可改用请求头 X-API-Key，二选一即可"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功，返回 JSON 字符串包裹的分析结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string",
+                      "description": "JSON 字符串，需用 JSON.parse 解析。内容为：success(布尔)、dishCount(菜品数)、foods([{name,confidence}])、wasteRate(剩余率%, 0-100)、wasteRateUnit(\"percent\")、platePixels(餐盘总面积)、foodPixels(剩余食物面积)、status(正常/轻微损耗/严重损耗)、wasteCause(弃因)、wasteCauseConfidence(弃因置信度)、detectionImageUrl(检测标注图)、segmentationImageUrl(分割图)、summary(文本摘要)"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/summary": {
+      "get": {
+        "summary": "获取餐食浪费聚合分析数据",
+        "description": "获取食堂餐食浪费的聚合统计数据：总检测次数、平均剩余占比、高浪费记录数、成功率（overview）；浪费最严重的菜品排行（top_wasted_foods）；按时间维度的浪费趋势（trend）；浪费等级分布（waste_level_distribution）。当用户询问浪费概况、哪个菜浪费最狠、浪费趋势、改进建议时调用。",
+        "operationId":  "getAnalysisSummary",
+        "parameters": [
+          { "name": "start_time", "in": "query", "required": false, "description": "开始时间 YYYY-MM-DD HH:MM:SS，不传默认最近7天", "schema": { "type": "string" } },
+          { "name": "end_time",   "in": "query", "required": false, "description": "结束时间 YYYY-MM-DD HH:MM:SS，不传默认当前时间", "schema": { "type": "string" } },
+          { "name": "time_dim",   "in": "query", "required": false, "description": "统计维度 day/week/month，默认 day", "schema": { "type": "string", "enum": ["day", "week", "month"], "default": "day" } },
+          { "name": "top_n",      "in": "query", "required": false, "description": "菜品排行前几名，默认5，范围1-20", "schema": { "type": "integer", "default": 5, "minimum": 1, "maximum": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功，返回结构化统计数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "description": "是否成功" },
+                    "time_range": {
+                      "type": "object",
+                      "properties": {
+                        "dimension": { "type": "string" },
+                        "start_time": { "type": "string" },
+                        "end_time": { "type": "string" }
+                      }
+                    },
+                    "overview": {
+                      "type": "object",
+                      "properties": {
+                        "total_records": { "type": "integer", "description": "总检测记录数" },
+                        "avg_waste_rate_pct": { "type": "number", "description": "平均剩余占比（百分比）" },
+                        "high_waste_count": { "type": "integer", "description": "高浪费记录数（剩余占比>50%）" },
+                        "success_rate_pct": { "type": "number", "description": "检测成功率（百分比）" }
+                      }
+                    },
+                    "top_wasted_foods": {
+                      "type": "array",
+                      "items": {
+                        "type":  "object",
+                        "properties": {
+                          "food_name": { "type": "string" },
+                          "appear_count": { "type": "integer", "description": "出现次数" },
+                          "avg_waste_rate_pct": { "type": "number", "description": "平均剩余占比（百分比）" }
+                        }
+                      }
+                    },
+                    "trend": {
+                      "type": "object",
+                      "properties": {
+                        "labels": { "type": "array", "items": { "type": "string" } },
+                        "waste_rates": { "type": "array", "items": { "type": "number" } }
+                      }
+                    },
+                    "waste_level_distribution": {
+                      "type": "object",
+                      "properties": {
+                        "normal": { "type": "integer", "description": "正常(<5%)" },
+                        "mild": { "type": "integer", "description": "轻微(5%-20%)" },
+                        "severe": { "type": "integer", "description": "严重(≥20%)" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "接口鉴权，值填：n9RwopDVeXxUe4RGnr__Akabf78i1Pii"
+      }
+    }
+  },
+  "security": [
+    { "ApiKeyAuth": [] }
+  ]
+}
